@@ -59,7 +59,8 @@ main{padding:14px;max-width:1400px;margin:0 auto}
 @media(min-width:800px){.ov{align-items:center}.sheet{border-radius:18px}}
 .sh-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .sh-head h2{margin:0;font-size:18px;margin-inline-end:auto}
-.x{border:0;background:var(--chip);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:18px}
+.x{border:0;background:var(--accent);color:#fff;height:36px;padding:0 14px;border-radius:999px;cursor:pointer;font-size:14px;white-space:nowrap}
+.sh-head{position:sticky;top:-16px;background:var(--bg);z-index:3;padding:10px 0;margin-top:-10px}
 .gal{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:12px}
 .gal img{height:min(58vh,520px);border-radius:12px;scroll-snap-align:center;flex:none;max-width:90%;object-fit:contain;background:#ddd6ca;cursor:zoom-in}
 .dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:14px 0}
@@ -226,33 +227,44 @@ $('#more').onclick=()=>{shown+=60;render();};
 $('#grid').onclick=e=>{const c=e.target.closest('.card');if(c)openItem(c.dataset.code);};
 
 /* ---------- sheets ---------- */
-function openSheet(html){$('#sheet').onclick=null;$('#sheet').innerHTML=html;$('#ov').classList.add('show');$('#sheet').scrollTop=0;hydrate($('#sheet'));}
-function closeSheet(){$('#ov').classList.remove('show');}
+/* back-button support: phone "back" closes the open page instead of leaving the app */
+let sheetOpen=false;
+function pushSheet(){if(!sheetOpen){sheetOpen=true;try{history.pushState({lebas:'sheet'},'');}catch(_){}}}
+function hideSheet(){$('#ov').classList.remove('show');sheetOpen=false;if(typeof openCode!=='undefined')openCode=null;}
+function closeSheet(){if(sheetOpen&&history.state&&history.state.lebas){history.back();}else hideSheet();}
+function pushZoom(){try{history.pushState({lebas:'zoom'},'');}catch(_){}}
+function closeZoom(){if(history.state&&history.state.lebas==='zoom')history.back();else $('#zoom').classList.remove('show');}
+window.addEventListener('popstate',()=>{
+  if($('#zoom').classList.contains('show')){$('#zoom').classList.remove('show');return;}
+  if($('#ov2')&&$('#ov2').classList.contains('show')){$('#ov2').classList.remove('show');}
+  if(sheetOpen)hideSheet();
+});
+function openSheet(html){$('#sheet').onclick=null;$('#sheet').innerHTML=html;$('#ov').classList.add('show');pushSheet();$('#sheet').scrollTop=0;hydrate($('#sheet'));}
 $('#ov').onclick=e=>{if(e.target.id==='ov')closeSheet();};
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#zoom').classList.contains('show'))$('#zoom').classList.remove('show');else closeSheet();}});
-$('#zoom').onclick=()=>$('#zoom').classList.remove('show');
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#zoom').classList.contains('show'))closeZoom();else if(sheetOpen)closeSheet();}});
+$('#zoom').onclick=closeZoom;
 function openItem(code){
   const it=D.items.find(i=>i.code===code);if(!it)return;
-  openSheet(`<div class="sh-head"><h2>${esc(fullType(it))}</h2><button class="x" data-a="close">×</button></div>
+  openSheet(`<div class="sh-head"><h2>${esc(fullType(it))}</h2><button class="x" data-a="close">→ بازگشت</button></div>
    ${it.photos.length?`<div class="gal">${it.photos.map(p=>`<img data-p="${esc(p)}" alt="">`).join('')}</div>`:'<div class="note">این جنس عکس ندارد.</div>'}
    <dl class="dl"><dt>کد</dt><dd><span class="mono">${esc(it.code)}</span></dd><dt>نوع</dt><dd>${esc(fullType(it))}</dd>
    <dt>رنگ</dt><dd>${esc(it.color||'—')}</dd><dt>سایز</dt><dd><span class="mono">${esc(it.size||'—')}</span></dd>
    <dt>وضعیت</dt><dd>${esc(it.status)}</dd>${it.note?`<dt>یادداشت</dt><dd>${esc(it.note)}</dd>`:''}</dl>
    <div class="acts"><button class="btn" data-a="copy">کپی کد</button></div>`);
   $('#sheet').onclick=async e=>{
-    if(e.target.tagName==='IMG'&&e.target.closest('.gal')&&e.target.src){$('#zoom img').src=e.target.src;$('#zoom').classList.add('show');return;}
+    if(e.target.tagName==='IMG'&&e.target.closest('.gal')&&e.target.src){$('#zoom img').src=e.target.src;$('#zoom').classList.add('show');pushZoom();return;}
     const a=e.target.dataset.a;if(a==='close')closeSheet();
     if(a==='copy'){try{await navigator.clipboard.writeText(it.code);toast('کد کپی شد: '+it.code);}catch(_){toast(it.code);}}
   };
 }
 function codesHelp(){
   const tbl=g=>Object.entries(D.cats[g]).sort((a,b)=>a[0].localeCompare(b[0])).map(([c,l])=>`<tr><td class="mono">${g}-${c}-###</td><td>${esc(l)} ${G[g]}</td><td>${D.items.filter(i=>i.g===g&&i.cat===c).length}</td></tr>`).join('');
-  openSheet(`<div class="sh-head"><h2>راهنمای کدها</h2><button class="x" onclick="closeSheet()">×</button></div>
+  openSheet(`<div class="sh-head"><h2>راهنمای کدها</h2><button class="x" onclick="closeSheet()">→ بازگشت</button></div>
    <p>ساختار کد: <b class="mono">جنسیت-دسته-شماره</b><br>مثال: <b class="mono">M-SH-012</b> = <b>M</b> مردانه، <b>SH</b> پیراهن، دوازدهمین پیراهن مردانه. <b>W</b> یعنی زنانه.</p>
    <div class="note">در جست‌وجو کد را بدون خط تیره هم می‌شود نوشت (msh12).</div>
    <table><tr><th>کد</th><th>دسته</th><th>تعداد</th></tr>${tbl('M')}${tbl('W')}</table>`);
 }
-$('#bMenu').onclick=()=>{openSheet(`<div class="sh-head"><h2>گزینه‌ها</h2><button class="x" onclick="closeSheet()">×</button></div>
+$('#bMenu').onclick=()=>{openSheet(`<div class="sh-head"><h2>گزینه‌ها</h2><button class="x" onclick="closeSheet()">→ بازگشت</button></div>
   <div class="acts" style="flex-direction:column;align-items:stretch"><button class="btn" id="m1">راهنمای کدها</button><button class="btn d" id="m2">خروج و پاک کردن رمز از این دستگاه</button></div>
   <div class="note">این نسخه فقط برای مشاهده است. تغییرات را مدیر آرشیو ثبت می‌کند.</div>`);
   $('#m1').onclick=codesHelp;$('#m2').onclick=logout;};
